@@ -10,22 +10,43 @@ one command.
 
 ## Install
 
-Requires Linux with Bash 4.4+, GNU coreutils and findutils, util-linux, procps,
-and AWK. Install `gio` for moving files to the Trash, `jq` for `history`,
-and Git for applying `purge`. AppImage inspection needs `readelf` (binutils)
-and `unsquashfs` (squashfs-tools). GitHub AppImage downloads also need `curl`
-and `jq`.
+Download the installer from the latest release and run it after the download succeeds.
 
 ```sh
-git clone --branch v0.0.1 https://github.com/eliaschampi/lemux.git
-cd lemux
-make install PREFIX="$HOME/.local"
-"$HOME/.local/bin/lemux" --version
+curl -fsSL --proto '=https' --proto-redir '=https' -o lemux-install.sh \
+  https://github.com/eliaschampi/lemux/releases/latest/download/install.sh
 ```
 
-Add `~/.local/bin` to your PATH if needed. The install includes a man page and
-completions for Bash, Zsh and Fish. Run `make uninstall PREFIX="$HOME/.local"`
-from the source directory to remove the CLI.
+```sh
+bash ./lemux-install.sh
+lemux --version
+```
+
+The installer verifies the archive with the SHA-256 embedded in the script and
+checks the new CLI before activating it. It installs under `~/.local` with a man
+page and completions for Bash, Zsh and Fish. Add `~/.local/bin` to your PATH if
+needed. Run a freshly downloaded installer to update, or use the installer
+attached to a specific release to select that version. Use `--prefix` for a
+different absolute installation path. An existing source installation requires
+confirmation and is backed up before migration. In noninteractive sessions,
+`--replace` explicitly authorizes that migration.
+
+Requires Linux with Bash 4.4+, GNU coreutils and findutils, util-linux, procps
+and AWK. The installer also needs curl and tar. Install `gio` for the Trash,
+`jq` for `history`, and Git for applying `purge`. AppImage inspection needs
+`readelf` (binutils) and `unsquashfs` (squashfs-tools). GitHub AppImage downloads
+also need curl and jq.
+
+### Install from source
+
+```sh
+git clone https://github.com/eliaschampi/lemux.git
+cd lemux
+make install PREFIX="$HOME/.local"
+```
+
+Run `make uninstall PREFIX="$HOME/.local"` from the source directory to remove
+a source installation.
 
 The native package backends are apt, dnf, pacman, and zypper. CI exercises the
 CLI and removal of a disposable package on Debian, Fedora, Arch, and openSUSE.

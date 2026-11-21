@@ -5,7 +5,7 @@
 # own status, so a failed grep in a probe never aborts a cleanup halfway through.
 
 # shellcheck disable=SC2034  # read by bin/lemux
-LEMUX_VERSION="0.0.1"
+LEMUX_VERSION="0.0.2"
 
 : "${XDG_CONFIG_HOME:=$HOME/.config}"
 : "${XDG_DATA_HOME:=$HOME/.local/share}"

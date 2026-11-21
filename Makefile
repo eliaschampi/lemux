@@ -8,7 +8,10 @@ MANDIR   = $(DESTDIR)$(PREFIX)/share/man/man1
 SHAREDIR = $(DESTDIR)$(PREFIX)/share
 VERSION := $(shell sed -n 's/^LEMUX_VERSION="\(.*\)"/\1/p' lib/lemux/core.sh)
 
-.PHONY: all install uninstall test lint check dist
+ARCHIVE   = lemux-$(VERSION).tar.gz
+INSTALLER = dist/install.sh
+
+.PHONY: all install uninstall test lint check dist installer
 
 all:
 	@echo "lemux $(VERSION): make install [PREFIX=~/.local] | make test | make lint"
@@ -33,9 +36,20 @@ test:
 	bats tests
 
 lint:
-	shellcheck -x bin/lemux lib/lemux/*.sh completions/lemux.bash
+	shellcheck -x bin/lemux lib/lemux/*.sh completions/lemux.bash scripts/install.sh
 
 check: lint test
 
 dist:
-	git archive --format=tar.gz --prefix=lemux-$(VERSION)/ -o lemux-$(VERSION).tar.gz v$(VERSION)
+	git archive --format=tar.gz --prefix=lemux-$(VERSION)/ -o "$(ARCHIVE)" v$(VERSION)
+
+# Render from the exact archive that will be uploaded to the release.
+installer:
+	@set -e; out="$(INSTALLER)"; parent=$$(dirname -- "$$out"); \
+	  sum=$$(sha256sum <"$(ARCHIVE)"); digest=$${sum%% *}; \
+	  mkdir -p -- "$$parent"; temporary=$$(mktemp -- "$$parent/.lemux-installer.XXXXXXXX"); \
+	  trap 'rm -f -- "$$temporary"' EXIT; \
+	  chmod 644 -- "$$temporary"; \
+	  sed -e 's/@RELEASE_VERSION@/$(VERSION)/g' -e "s/@RELEASE_SHA256@/$$digest/g" \
+	    scripts/install.sh >"$$temporary"; \
+	  mv -fT -- "$$temporary" "$$out"

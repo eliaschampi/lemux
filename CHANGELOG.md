@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.0.2] — 2026-11-21
+
+- Publish a standalone `install.sh` with each release. It checks the archive's
+  SHA-256 and CLI version before activating it at a user prefix.
+- Reuse the installer to update LEmux. Earlier releases remain available and
+  migration from a source installation asks for consent and keeps a backup.
+
 ## [0.0.1] — 2026-11-21
 
 First public release of LEmux for Linux.
@@ -18,3 +25,4 @@ First public release of LEmux for Linux.
 - Install with a man page and Bash, Zsh and Fish completions.
 
 [0.0.1]: https://github.com/eliaschampi/lemux/releases/tag/v0.0.1
+[0.0.2]: https://github.com/eliaschampi/lemux/releases/tag/v0.0.2

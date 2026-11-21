@@ -12,11 +12,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build the source tarball
+      - name: Build the tarball and versioned installer
         run: |
           version=${GITHUB_REF_NAME#v}
           test "$(bin/lemux --version)" = "lemux $version"
           make dist
+          make installer
+          bash -n dist/install.sh
           tar -xzf "lemux-$version.tar.gz"
           test "$("./lemux-$version/bin/lemux" --version)" = "lemux $version"
           sha256sum "lemux-$version.tar.gz" > "lemux-$version.tar.gz.sha256"
@@ -27,5 +29,5 @@ jobs:
           version=${GITHUB_REF_NAME#v}
           notes=$(awk -v v="$version" '$0 ~ "^## \\[" v "\\]" {f=1; next} /^## \[/ {f=0} f' CHANGELOG.md)
           test -n "$notes"
-          gh release create --verify-tag "$GITHUB_REF_NAME" "lemux-$version.tar.gz" "lemux-$version.tar.gz.sha256" \
+          gh release create --verify-tag "$GITHUB_REF_NAME" "lemux-$version.tar.gz" "lemux-$version.tar.gz.sha256" dist/install.sh \
             --title "lemux $version" --notes "$notes"
