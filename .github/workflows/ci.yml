@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+      - run: make lint
+
+  test:
+    name: test (${{ matrix.distro }})
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: debian
+            image: debian:stable
+            deps: apt-get update -qq && apt-get install -y -qq bats procps jq curl make cowsay git libglib2.0-bin binutils squashfs-tools
+          - distro: fedora
+            image: fedora:latest
+            deps: dnf -y -q install bats procps-ng findutils diffutils jq curl make which cowsay git glib2 binutils squashfs-tools
+          - distro: arch
+            image: archlinux:latest
+            deps: pacman -Syu --noconfirm --needed bats procps-ng jq curl make diffutils which cowsay git glib2 binutils squashfs-tools
+          - distro: opensuse
+            image: opensuse/tumbleweed:latest
+            deps: zypper -n -q in bats procps findutils jq curl make diffutils which gawk tar gzip cowsay git gio binutils squashfs
+    steps:
+      - name: Install dependencies
+        run: ${{ matrix.deps }}
+      - uses: actions/checkout@v4
+      - name: Test suite
+        run: bats tests
+      - name: Real package removal with the native package manager
+        run: |
+          export PATH=$PATH:/usr/games NO_COLOR=1
+          bin/lemux remove cowsay
+          bin/lemux -y remove cowsay --apply
+          ! command -v cowsay
+      - name: Smoke run of every read-only command
+        run: |
+          bin/lemux check || test "$?" -eq 1
+          bin/lemux clean --packages --orphans --journal
+          bin/lemux app list
+          bin/lemux status
+          bin/lemux analyze "$HOME"
+          bin/lemux purge "$PWD"
+          bin/lemux installers
+          bin/lemux optimize
+          bin/lemux history
+
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: make install PREFIX="$HOME/.local"
+      - run: |
+          test "$("$HOME/.local/bin/lemux" --version)" = "$(bin/lemux --version)"
+          man -l "$HOME/.local/share/man/man1/lemux.1" >/dev/null
+          make uninstall PREFIX="$HOME/.local"
+          test ! -e "$HOME/.local/bin/lemux"

@@ -1,0 +1,75 @@
+#compdef lemux
+# zsh completion for lemux
+
+_lemux_apps() {
+  local -a apps
+  apps=("${XDG_DATA_HOME:-$HOME/.local/share}"/lemux/apps/*(N/:t))
+  _describe -t apps 'installed AppImage' apps
+}
+
+_lemux() {
+  local curcontext=$curcontext state line
+  _arguments -C \
+    '(-y --yes)'{-y,--yes}'[answer yes to confirmations]' \
+    '--no-color[plain output]' \
+    '(- *)'{-h,--help}'[show help]' \
+    '(- *)'{-V,--version}'[show the version]' \
+    '1:command:->command' \
+    '*::argument:->argument'
+  case $state in
+    command)
+      local -a commands=(
+        'status:live dashboard with a health score'
+        'analyze:where the disk space went'
+        'history:what lemux changed'
+        'purge:delete build artifacts of your projects'
+        'installers:remove installer files you no longer need'
+        'optimize:refresh caches and maintenance services'
+        'check:health report with guided fixes'
+        'clean:free space from caches'
+        'remove:uninstall an app and everything it left'
+        'app:install, update and remove AppImages'
+        'update:update packages, Flatpak, Snap and AppImages'
+      )
+      _describe -t commands command commands
+      ;;
+    argument)
+      case $words[1] in
+        check) _arguments '--fix[offer guided repairs]' ;;
+        clean) _arguments '--apply[delete instead of reporting]' '--trash[also empty the Trash]' \
+          '--orphans[also remove orphaned packages]' '--journal[also shrink the journal]' '--packages[also clean native package cache]' ;;
+        remove) _arguments '--apply[remove instead of reporting]' '1:application name' ;;
+        update) _arguments '--apps[only the AppImages]' ;;
+        status) _arguments '(-w --watch)'{-w,--watch}'[refresh continuously]' '-n[refresh interval]:seconds' ;;
+        analyze) _arguments '--top[how many folders]:number' '1:folder:_directories' ;;
+        history) _arguments '--json[machine-readable output]' '-n[how many entries]:number' ;;
+        purge) _arguments '--apply[delete]' '--all[include recent artifacts]' '--days[what counts as recent]:days' '*:folder:_directories' ;;
+        installers) _arguments '--apply[delete the safe ones]' '--all[include every installer]' ;;
+        optimize) _arguments '--apply[run the steps]' ;;
+        app)
+          if ((CURRENT == 2)); then
+            local -a subcommands=(
+              'install:install an AppImage as an application'
+              'update:update AppImages'
+              'list:list installed AppImages'
+              'rollback:return to the previous version'
+              'remove:uninstall an AppImage'
+            )
+            _describe -t subcommands subcommand subcommands
+          else
+            case $words[2] in
+              install) _arguments '--from[GitHub owner/repo to update from]:repository' \
+                '--name[application id]:id' '--move[delete the downloaded file]' \
+                '*:AppImage:_files -g "*.(AppImage|appimage)(-.)"' ;;
+              update) _arguments '--force[reinstall or downgrade]' '--from[GitHub owner/repo]:repository' '*:app:_lemux_apps' ;;
+              rollback) _lemux_apps ;;
+              remove) _arguments '--purge[also delete its settings]' '*:app:_lemux_apps' ;;
+            esac
+          fi
+          ;;
+      esac
+      ;;
+  esac
+}
+
+_lemux "$@"

@@ -1,0 +1,104 @@
+# LEmux
+
+LEmux is a Linux maintenance CLI. Inspect system health, preview space you can
+reclaim, manage AppImages, and use your distribution's own package manager from
+one command.
+
+[![CI](https://github.com/eliaschampi/lemux/actions/workflows/ci.yml/badge.svg)](https://github.com/eliaschampi/lemux/actions/workflows/ci.yml)
+[![Releases](https://img.shields.io/github/v/release/eliaschampi/lemux)](https://github.com/eliaschampi/lemux/releases)
+[![MIT license](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+## Install
+
+Requires Linux with Bash 4.4+, GNU coreutils and findutils, util-linux, procps,
+and AWK. Install `gio` for moving files to the Trash, `jq` for `history`,
+and Git for applying `purge`. AppImage inspection needs `readelf` (binutils)
+and `unsquashfs` (squashfs-tools). GitHub AppImage downloads also need `curl`
+and `jq`.
+
+```sh
+git clone --branch v0.0.1 https://github.com/eliaschampi/lemux.git
+cd lemux
+make install PREFIX="$HOME/.local"
+"$HOME/.local/bin/lemux" --version
+```
+
+Add `~/.local/bin` to your PATH if needed. The install includes a man page and
+completions for Bash, Zsh and Fish. Run `make uninstall PREFIX="$HOME/.local"`
+from the source directory to remove the CLI.
+
+The native package backends are apt, dnf, pacman, and zypper. CI exercises the
+CLI and removal of a disposable package on Debian, Fedora, Arch, and openSUSE.
+
+## Check your system
+
+```sh
+lemux check
+lemux check --fix
+lemux status --watch
+lemux history --json
+```
+
+`check` reports clock source, audio, Wi-Fi, Bluetooth, services, packages,
+available memory and pressure, disks, temperatures, and journal usage. Missing
+tools and unavailable service managers are reported when relevant. Selected
+repairs are offered individually, including masked PipeWire sockets,
+failed NetworkManager and Bluetooth services, interrupted apt installs, and
+oversized archived journals. Radio switches and boot settings are left to the
+user. Low memory is diagnosed using available RAM, swap and kernel pressure
+metrics.
+
+`status` samples CPU, disk I/O and network activity over a second and shows
+memory, swap, storage, temperature and battery when those counters are available.
+Its health score is a heuristic. `history` shows operations recorded under
+`$XDG_STATE_HOME/lemux` or `~/.local/state/lemux`.
+
+## Reclaim space
+
+| Command | Behavior |
+|---|---|
+| `lemux analyze ~/Documents` | Shows the largest top-level directories and individual files on one filesystem. |
+| `lemux clean` | Previews known browser, development and thumbnail caches. Add `--apply` to clear them. |
+| `lemux clean --packages --orphans --journal` | Adds the native package cache, orphaned packages and archived journals to the preview. `--trash` adds the user Trash. |
+| `lemux purge ~/Projects` | Finds build artifacts beside project markers. Git-tracked paths and nested repositories are kept. Recent artifacts require `--all`. |
+| `lemux installers` | Lists downloaded installers. With `--apply`, moves candidates that match installed packages or identical managed AppImages to the Trash. `--all` includes other installers. |
+| `lemux remove <id>` | Previews removal by exact package or application ID. Matching user files go to the Trash on `--apply`. |
+| `lemux optimize` | Previews DNS, desktop and font cache refreshes and eligible TRIM. Add `--apply` to run the listed steps. |
+
+Put one absolute path or glob per line in `~/.config/lemux/protect` to keep
+files during cleanup. The list accepts `~/` and full-line comments. If the Trash
+is unavailable, LEmux reports the failure and leaves the file in place. Reported
+user-file sizes are apparent bytes. Filesystems may reclaim a different amount.
+
+## Manage AppImages and updates
+
+```sh
+lemux app install ~/Downloads/Example.AppImage --name example
+lemux app update example ~/Downloads/Example-new.AppImage
+lemux app rollback example
+lemux app list
+lemux update --apps
+```
+
+To install from a GitHub release, pass `owner/repo` to `app install`. Add
+`--from owner/repo` when installing a local file to opt in to GitHub updates.
+An update may also set that source with `app update <id> --from owner/repo`.
+GitHub downloads require a published SHA-256 digest and one compatible asset.
+LEmux reads AppImage metadata without executing it, creates a desktop launcher,
+and retains one previous managed version for rollback. Launching any downloaded
+application requires trusting its publisher.
+
+`lemux update` upgrades native packages after confirmation, then updates
+available Flatpak, Snap and managed AppImages. `--apps` limits it to managed
+AppImages.
+
+## LEmux and Mole
+
+[Mole for Linux](https://github.com/tw93/Mole/tree/linux) inspired LEmux's CLI.
+Both cover cleanup, removal, disk analysis and live status. LEmux's focus is
+diagnosis and guided repair for Linux services and devices, plus AppImage
+management with digest checks and rollback.
+
+Run `lemux <command> --help` or `man lemux` for flags and exit codes.
+Issues and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md)
+and [LICENSE](LICENSE).

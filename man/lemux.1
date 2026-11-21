@@ -1,0 +1,196 @@
+.TH LEMUX 1 2026-11-21 "lemux 0.0.1" "User Commands"
+.SH NAME
+lemux \- check, clean, remove, install and update a Linux system
+.SH SYNOPSIS
+.B lemux
+.RB [ \-y ]
+.I command
+.RI [ options ]
+.SH DESCRIPTION
+.B lemux
+is a small assistant for everyday Linux maintenance. It reports the health of the
+system and repairs what it can, frees space taken by caches that rebuild themselves,
+removes applications and matching user files, and installs and
+updates AppImages as if they were regular applications.
+.PP
+It drives the tools your distribution already ships (apt, dnf, pacman, zypper,
+systemd, Flatpak, Snap) instead of replacing them. Cleanup and native removal commands preview changes until given
+.BR \-\-apply .
+.SH COMMANDS
+.TP
+.BR status " [" \-\-watch "] [" \-n
+.IR seconds ]
+One-screen dashboard: health score (0\(en100), CPU, memory, swap, disk usage and
+I/O, network traffic, temperature, battery, failed units and top processes.
+.B \-\-watch
+refreshes it until Ctrl+C.
+.TP
+.BR analyze " [\fIfolder\fR] [" \-\-top
+.IR N ]
+Largest folders directly under a folder (default: home), with their share of the
+total, and the largest files below it. Read-only; stays on one filesystem.
+.TP
+.BR history " [" \-n
+.IR N "] [" \fB\-\-json\fR ]
+What
+.B lemux
+deleted, moved to the Trash, uninstalled or optimized.
+.TP
+.BR purge " [\fIfolder\fR ...] [" \-\-apply "] [" \-\-all "] [" \-\-days
+.IR N ]
+Deletes rebuildable build artifacts of your projects (node_modules, .svelte\-kit,
+\&.next, target, Composer vendor, Python venvs and caches, Gradle, build/dist, Dart,
+Swift and Zig caches). Each must sit next to the file that proves what it is, nothing
+tracked by git is touched, and artifacts changed in the last
+.I N
+days (default 7) are kept unless
+.BR \-\-all .
+.TP
+.BR installers " [" \-\-apply "] [" \-\-all ]
+Installer files in Downloads, Telegram Desktop and the Desktop. Packages that are
+already installed and AppImages identical to one managed by
+.B lemux
+are selected for the Trash; other installers need
+.BR \-\-all .
+.TP
+.BR optimize " [" \-\-apply ]
+Flushes the DNS cache, rebuilds the application menu, MIME, icon and font caches,
+runs TRIM when no fstrim timer is active. Only the steps that apply to the system are shown.
+.TP
+.BR check " [" \-\-fix ]
+Health report for clock, audio, Wi-Fi, Bluetooth, services, packages, memory,
+swap, storage, temperatures and the systemd journal.
+.B \-\-fix
+offers, one by one, the repairs
+.B lemux
+knows for the problems found. Exits 1 when there are warnings.
+.TP
+.BR clean " [" \-\-apply "] [" \-\-trash "] [" \-\-orphans "] [" \-\-journal "] [" \-\-packages ]
+Reports the space held by browser caches (skipped while the browser runs), npm,
+pnpm, Yarn, pip, Go, Composer, Corepack, Cargo downloads and thumbnails.
+.B \-\-packages
+also cleans the native package cache.
+.B \-\-apply
+deletes them;
+.B \-\-trash
+also empties the Trash;
+.B \-\-orphans
+removes packages nothing depends on;
+.B \-\-journal
+shrinks the systemd journal to 200M.
+.TP
+.BI "remove " name " \fR[\fB\-\-apply\fR]"
+Finds an exact package or application ID. With
+.BR \-\-apply ,
+matching user files go to the Trash and file associations are removed.
+.TP
+.B app install \fIfile.AppImage\fR | \fIowner/repo\fR | \fIGitHub URL\fR \fR[\fB\-\-from \fIowner/repo\fR] [\fB\-\-name \fIid\fR] [\fB\-\-move\fR]
+Installs an AppImage under
+.IR ~/.local/share/lemux/apps/<id> ,
+with a generated menu entry from AppImage metadata, an icon when available, and a
+command in
+.IR ~/.local/bin .
+The update source is the GitHub repository given with
+.BR \-\-from ,
+or the repository used for the initial installation.
+.B \-\-move
+sends the original local file to the Trash after installation.
+.TP
+.B app update \fR[\fIid\fR ...] [\fB\-\-force\fR]
+Updates AppImages. GitHub downloads require a matching SHA-256 digest.
+A previous version is kept for rollback. Set a source with
+.BR "\-\-from owner/repo" .
+.B app update \fIid file.AppImage
+updates from a local file.
+.TP
+.B app list\fR, \fBapp rollback \fIid\fR, \fBapp remove \fIid \fR[\fB\-\-purge\fR]
+List installed AppImages, return to the previous version, or uninstall
+.RB ( \-\-purge
+also moves matching user files to the Trash).
+.TP
+.BR update " [" \-\-apps ]
+Upgrades system packages (after asking), Flatpak and Snap apps, and the
+AppImages installed with
+.BR lemux .
+.B \-\-apps
+updates only the AppImages.
+.SH OPTIONS
+.TP
+.BR \-y ", " \-\-yes
+Answer yes to every confirmation.
+.TP
+.B \-\-no\-color
+Plain output. The
+.B NO_COLOR
+environment variable has the same effect.
+.TP
+.BR \-h ", " \-\-help
+Show help; every command also accepts
+.BR \-\-help .
+.TP
+.BR \-V ", " \-\-version
+Print the version.
+.SH SAFETY
+Use
+.B \-\-apply
+to execute previewed cleanup steps. Root rights are requested for system
+operations that need them. When the Trash is unavailable, files selected
+for it stay in place.
+.SH FILES
+.TP
+.I ~/.config/lemux/protect
+Absolute paths or globs, one per line, to keep during file cleanup.
+Cleanup is blocked if the protect list cannot be read.
+.TP
+.I ~/.config/lemux/purge_paths
+Folders scanned by
+.BR purge .
+.TP
+.I ~/.local/state/lemux/operations.log
+Every deletion, uninstall and optimization, shown by
+.BR history .
+.TP
+.I ~/.local/share/lemux/apps/<id>/
+AppImage, icon, metadata and the previous version.
+.TP
+.I ~/.local/share/applications/lemux\-<id>.desktop
+Menu entries of managed AppImages.
+.SH ENVIRONMENT
+.TP
+.B GITHUB_TOKEN
+Raises the GitHub API rate limit for AppImage updates.
+.TP
+.B LEMUX_YES
+Set to 1 to answer yes to confirmations.
+.TP
+.B LEMUX_NO_OPLOG
+Set to 1 to stop writing the operations log.
+.TP
+.B NO_COLOR
+Disable colours.
+.SH EXIT STATUS
+0 on success, 1 on failure or when
+.B check
+finds warnings, 2 on wrong usage.
+.SH EXAMPLES
+.nf
+lemux status \-\-watch
+lemux analyze ~/Documents
+lemux purge \-\-apply
+lemux installers \-\-apply
+lemux check \-\-fix
+lemux clean                 # see what can be freed
+lemux clean \-\-apply \-\-orphans
+lemux remove obs\-studio      # review, then add \-\-apply
+lemux app install ~/Downloads/Shotcut.AppImage \-\-from mltframework/shotcut
+lemux app install neovim/neovim
+lemux update
+.fi
+.SH SEE ALSO
+.BR apt (8),
+.BR dnf (8),
+.BR pacman (8),
+.BR zypper (8),
+.BR flatpak (1),
+.BR journalctl (1),
+.BR systemctl (1)

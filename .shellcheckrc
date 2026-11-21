@@ -1,0 +1,4 @@
+# sed is clearer than ${var//} for prefixing every line of multi-line text.
+disable=SC2001
+external-sources=true
+source-path=SCRIPTDIR

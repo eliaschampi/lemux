@@ -1,0 +1,117 @@
+#!/usr/bin/env bash
+# lemux — a modern Linux assistant: check, clean, remove, install and update.
+# SPDX-License-Identifier: MIT
+set -uo pipefail
+shopt -s nullglob
+
+if ((BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4))); then
+  echo "lemux needs bash 4.4 or newer" >&2
+  exit 1
+fi
+
+LEMUX_LIBDIR=${LEMUX_LIBDIR:-$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")")/../lib/lemux}
+[[ -r $LEMUX_LIBDIR/core.sh ]] || { echo "lemux: library not found in $LEMUX_LIBDIR" >&2; exit 1; }
+
+# shellcheck source=../lib/lemux/core.sh
+. "$LEMUX_LIBDIR/core.sh"
+# shellcheck source=../lib/lemux/pkg.sh
+. "$LEMUX_LIBDIR/pkg.sh"
+# shellcheck source=../lib/lemux/check.sh
+. "$LEMUX_LIBDIR/check.sh"
+# shellcheck source=../lib/lemux/clean.sh
+. "$LEMUX_LIBDIR/clean.sh"
+# shellcheck source=../lib/lemux/app.sh
+. "$LEMUX_LIBDIR/app.sh"
+# shellcheck source=../lib/lemux/remove.sh
+. "$LEMUX_LIBDIR/remove.sh"
+# shellcheck source=../lib/lemux/update.sh
+. "$LEMUX_LIBDIR/update.sh"
+# shellcheck source=../lib/lemux/purge.sh
+. "$LEMUX_LIBDIR/purge.sh"
+# shellcheck source=../lib/lemux/installers.sh
+. "$LEMUX_LIBDIR/installers.sh"
+# shellcheck source=../lib/lemux/analyze.sh
+. "$LEMUX_LIBDIR/analyze.sh"
+# shellcheck source=../lib/lemux/status.sh
+. "$LEMUX_LIBDIR/status.sh"
+# shellcheck source=../lib/lemux/optimize.sh
+. "$LEMUX_LIBDIR/optimize.sh"
+# shellcheck source=../lib/lemux/history.sh
+. "$LEMUX_LIBDIR/history.sh"
+
+# Fail loudly when a basic tool is missing (minimal containers often lack findutils or procps).
+for tool in find du awk sed ps sort stat numfmt; do
+  command -v "$tool" >/dev/null 2>&1 || die "missing dependency: $tool (install findutils, procps, coreutils, gawk)"
+done
+
+LEMUX_TMP=$(mktemp -d -t lemux.XXXXXX) || die "cannot create a temporary folder"
+trap 'rm -rf -- "$LEMUX_TMP"' EXIT
+trap 'exit 130' INT TERM
+
+help_main() {
+  cat <<EOF
+lemux $LEMUX_VERSION — check, clean, remove, install and update your Linux system
+
+Usage: lemux [-y] <command> [options]
+
+Look:
+  status [--watch]               live dashboard with a health score
+  check [--fix]                  health report; --fix offers guided repairs
+  analyze [folder]               where the disk space went
+  history                        what lemux changed
+
+Free space (dry run by default, add --apply):
+  clean [--trash] [--orphans] [--journal] [--packages]   caches that rebuild themselves
+  purge [folder]                 build artifacts of your projects (node_modules, target...)
+  installers                     installer files you no longer need
+
+Maintain:
+  remove <name> [--apply]        uninstall an exact application ID
+  app <install|update|list|rollback|remove>
+                                 AppImages as real apps, with verified updates
+  update [--apps]                update system packages, Flatpak, Snap and AppImages
+  optimize [--apply]             refresh DNS, menu, MIME, icon and font caches; TRIM
+
+Options:
+  -y, --yes        answer yes to confirmations
+      --no-color   plain output (NO_COLOR is honoured too)
+  -h, --help       this help (also: lemux <command> --help)
+  -V, --version    print the version
+
+Free-space commands preview changes by default. Protect paths in ~/.config/lemux/protect.
+EOF
+}
+
+main() {
+  while (($#)); do
+    case $1 in
+      -y | --yes) LEMUX_YES=1 ;;
+      --no-color) C_B='' C_G='' C_Y='' C_R='' C_D='' C_0='' ;;
+      -V | --version) say "lemux $LEMUX_VERSION"; return 0 ;;
+      -h | --help | help) help_main; return 0 ;;
+      -*) usage_error "unknown option '$1' (see: lemux --help)" ;;
+      *) break ;;
+    esac
+    shift
+  done
+  local cmd=${1:-}
+  (($#)) && shift
+  LEMUX_CMD=$cmd
+  case $cmd in
+    check | doctor) cmd_check "$@" ;;
+    clean) cmd_clean "$@" ;;
+    remove | uninstall) cmd_remove "$@" ;;
+    app | apps) cmd_app "$@" ;;
+    update | upgrade) cmd_update "$@" ;;
+    purge) cmd_purge "$@" ;;
+    installers | installer) cmd_installers "$@" ;;
+    analyze | analyse | du) cmd_analyze "$@" ;;
+    status | top) cmd_status "$@" ;;
+    optimize | optimise) cmd_optimize "$@" ;;
+    history | log) cmd_history "$@" ;;
+    '') help_main ;;
+    *) usage_error "unknown command '$cmd' (see: lemux --help)" ;;
+  esac
+}
+
+main "$@"
