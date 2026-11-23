@@ -15,6 +15,11 @@ remove_leftovers() {
     [[ $dir != "$HOME" && "$HOME/" != "$dir/"* ]] || continue
     for f in "$dir"/* "$dir"/.[!.]*; do
       [[ -e $f || -L $f ]] || continue
+      case $f in
+        "$XDG_DATA_HOME/applications"|"$XDG_DATA_HOME/Trash"|"$XDG_DATA_HOME/icons"|"$XDG_DATA_HOME/fonts"|\
+        "$LEMUX_CONF"|"$LEMUX_STATE"|"$XDG_DATA_HOME/lemux"|"$XDG_DATA_HOME/mime"|"$XDG_CONFIG_HOME/autostart"|"$XDG_CONFIG_HOME/systemd")
+          continue ;;
+      esac
       app_file_matches "${f##*/}" "$id" && can_remove_path "$f" && printf '%s\0' "$f"
     done
   done
@@ -22,7 +27,7 @@ remove_leftovers() {
   if [[ -e $legacy || -L $legacy ]]; then
     local reserved
     for reserved in "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_STATE_HOME" "$XDG_CACHE_HOME" \
-      "$HOME/.local" "$HOME/.var" "$HOME/.ssh" "$HOME/.gnupg" "$HOME/.password-store"; do
+      "$HOME/.local" "$HOME/.var" "$HOME/.git" "$HOME/.ssh" "$HOME/.gnupg" "$HOME/.password-store"; do
       [[ $reserved == "$legacy" || $reserved == "$legacy"/* ]] && return 0
     done
     [[ -d $legacy ]] && can_remove_path "$legacy" && printf '%s\0' "$legacy"
@@ -74,15 +79,33 @@ remove_user_data() {
 }
 
 cmd_remove() {
-  local id="" apply=0 arg
+  local id="" apply=0 scoped=0 purge=0 arg
   for arg in "$@"; do
     case $arg in
       --apply) apply=1 ;;
+      --appimage) scoped=1 ;;
+      --purge) purge=1 ;;
       -h | --help) help_remove; return 0 ;;
       -*) usage_error "remove: unknown option '$arg'" ;;
       *) [[ -z $id ]] || usage_error "remove: one application at a time"; id=$arg ;;
     esac
   done
+  if ((scoped)); then
+    app_id "$id" || usage_error "remove --appimage needs a managed AppImage ID"
+    [[ -f $LEMUX_APPS/$id/$id.AppImage ]] || { err "$id is not a managed AppImage"; return 1; }
+    load_protect
+    if ((apply)); then
+      local -a options=()
+      ((purge)) && options+=(--purge)
+      app_remove "$id" "${options[@]}"
+      return
+    fi
+    section "Dry run: managed AppImage '$id' (add --apply)"
+    note "Remove managed versions, menu entry and command link"
+    if ((purge)); then remove_user_data "$id" 0; fi
+    return
+  fi
+  ((purge == 0)) || usage_error "--purge is for --appimage"
   [[ $id =~ ^[a-zA-Z0-9][a-zA-Z0-9._+-]{3,127}$ ]] || usage_error "remove: give an exact application ID (at least 4 characters)"
   [[ ${id,,} != lemux ]] || usage_error "to remove lemux itself run 'make uninstall' in its source folder"
   load_protect
@@ -136,6 +159,10 @@ cmd_remove() {
 help_remove() {
   cat <<'EOF_HELP'
 Usage: lemux remove <id> [--apply]
+       lemux remove --appimage <id> [--apply] [--purge]
+
+--appimage limits removal to a managed AppImage and its integration. Add
+--purge to include its matching user data. app remove is a compatibility alias.
 
 Finds the exact native package, Flatpak, Snap or managed AppImage ID. Also
 lists matching user files by exact name or reverse-domain suffix. With

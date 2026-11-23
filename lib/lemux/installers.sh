@@ -23,7 +23,7 @@ installer_status() {
       if [[ -n $pkg ]] && pkg_is_installed "$pkg"; then echo "1|$pkg is installed"; else echo "0|not installed"; fi ;;
     *.appimage)
       for app in "$LEMUX_APPS"/*/*.AppImage; do
-        [[ -f $app && $(stat -c %s "$app") == "$(stat -c %s "$f")" ]] && cmp -s "$app" "$f" &&
+        [[ -f $app && $(stat -Lc %s -- "$app") == "$(stat -c %s "$f")" ]] && cmp -s "$app" "$f" &&
           { echo "1|installed with lemux as $(basename "$app" .AppImage)"; return; }
       done
       echo "0|not managed by lemux (lemux app install)" ;;

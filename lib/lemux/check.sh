@@ -266,9 +266,19 @@ cmd_check() {
   if ((WARNINGS == 0)); then say "${C_G}Healthy.${C_0}"; else say "${C_Y}$WARNINGS warning(s).${C_0}"; fi
   if ((${#FIXES[@]})); then
     if ((fix)); then
+      local -a choices=() picked=()
+      local i
       for entry in "${FIXES[@]}"; do
+        choices+=("${entry%%|*}")
+        if [[ $LEMUX_YES == 1 ]]; then picked+=(1); else picked+=(0); fi
+      done
+      if [[ $LEMUX_YES != 1 && -t 0 && -t 1 ]]; then
+        checkboxes choices picked "Select repairs" || return $?
+      fi
+      for i in "${!FIXES[@]}"; do
+        ((picked[i])) || continue
+        entry=${FIXES[i]}
         desc=${entry%%|*} fn=${entry#*|}
-        confirm "Fix: $desc?" || continue
         if "$fn"; then
           ok "applied: $desc"
           oplog repair "$desc"
@@ -290,7 +300,7 @@ Usage: lemux check [--fix]
 Read-only health report: clock source, audio, Wi-Fi, Bluetooth, failed services, package
 database, memory pressure, disks, temperatures and journal size.
 
-  --fix   offer the repairs lemux knows for the problems found, one by one
+  --fix   select repairs with Space and accept with Enter. -y applies all offered repairs
 
 Exit status: 0 healthy, 1 warnings found.
 EOF

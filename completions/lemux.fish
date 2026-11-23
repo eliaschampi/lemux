@@ -8,7 +8,7 @@ function __lemux_apps
     end
 end
 
-set -l commands status check analyze history clean purge installers remove app update optimize
+set -l commands status check why analyze history clean purge installers remove app update optimize
 set -l app_commands install update list rollback remove
 
 complete -c lemux -f
@@ -29,6 +29,9 @@ complete -c lemux -n "not __fish_seen_subcommand_from $commands" -a remove -d 'U
 complete -c lemux -n "not __fish_seen_subcommand_from $commands" -a app -d 'Manage AppImages'
 complete -c lemux -n "not __fish_seen_subcommand_from $commands" -a update -d 'Update everything'
 
+complete -c lemux -n "not __fish_seen_subcommand_from $commands" -a why -d 'Explain local listening ports'
+complete -c lemux -n "__fish_seen_subcommand_from why" -l kill -d 'Confirm and send SIGTERM'
+complete -c lemux -n "__fish_seen_subcommand_from why" -l pid -x -d 'Select a listener PID'
 complete -c lemux -n "__fish_seen_subcommand_from check" -l fix -d 'Offer guided repairs'
 complete -c lemux -n "__fish_seen_subcommand_from status" -s w -l watch -d 'Refresh continuously'
 complete -c lemux -n "__fish_seen_subcommand_from analyze" -l top -d 'How many folders' -x
@@ -37,12 +40,18 @@ complete -c lemux -n "__fish_seen_subcommand_from history" -l json -d 'Machine-r
 complete -c lemux -n "__fish_seen_subcommand_from purge installers optimize" -l apply -d 'Do it (default is a dry run)'
 complete -c lemux -n "__fish_seen_subcommand_from purge installers" -l all -d 'Include the ones kept by default'
 complete -c lemux -n "__fish_seen_subcommand_from purge" -l days -d 'What counts as recent' -x
+complete -c lemux -n "__fish_seen_subcommand_from clean" -l basic -d 'Development caches'
+complete -c lemux -n "__fish_seen_subcommand_from clean" -l browser -d 'Browser caches'
+complete -c lemux -n "__fish_seen_subcommand_from clean" -l deep -d 'Deep caches'
+complete -c lemux -n "__fish_seen_subcommand_from clean" -l logs -d 'Journal and npm logs'
+complete -c lemux -n "__fish_seen_subcommand_from clean" -l bash-history -d 'Saved Bash history'
 complete -c lemux -n "__fish_seen_subcommand_from clean" -l apply -d 'Delete instead of reporting'
 complete -c lemux -n "__fish_seen_subcommand_from clean" -l trash -d 'Also empty the Trash'
 complete -c lemux -n "__fish_seen_subcommand_from clean" -l orphans -d 'Also remove orphaned packages'
 complete -c lemux -n "__fish_seen_subcommand_from clean" -l journal -d 'Also shrink the journal'
 complete -c lemux -n "__fish_seen_subcommand_from clean" -l packages -d 'Clean the native package cache'
-complete -c lemux -n "__fish_seen_subcommand_from remove; and not __fish_seen_subcommand_from app" -l apply -d 'Remove instead of reporting'
+complete -c lemux -n "__fish_seen_subcommand_from remove; and not __fish_seen_subcommand_from app" -l appimage -d 'Remove a managed AppImage only'
+complete -c lemux -n "__fish_seen_subcommand_from remove" -l apply -d 'Remove instead of reporting'
 complete -c lemux -n "__fish_seen_subcommand_from update; and not __fish_seen_subcommand_from app" -l apps -d 'Only the AppImages'
 
 complete -c lemux -n "__fish_seen_subcommand_from app; and not __fish_seen_subcommand_from $app_commands" -a install -d 'Install an AppImage'
@@ -57,4 +66,4 @@ complete -c lemux -n "__fish_seen_subcommand_from app; and __fish_seen_subcomman
 complete -c lemux -n "__fish_seen_subcommand_from app; and __fish_seen_subcommand_from update rollback remove" -a "(__lemux_apps)"
 complete -c lemux -n "__fish_seen_subcommand_from app; and __fish_seen_subcommand_from update" -l force -d 'Reinstall or downgrade'
 complete -c lemux -n "__fish_seen_subcommand_from app; and __fish_seen_subcommand_from update" -l from -d 'GitHub owner/repo'
-complete -c lemux -n "__fish_seen_subcommand_from app; and __fish_seen_subcommand_from remove" -l purge -d 'Also delete its settings'
+complete -c lemux -n "__fish_seen_subcommand_from remove" -l purge -d 'Also delete its settings'

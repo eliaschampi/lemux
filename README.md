@@ -35,7 +35,7 @@ Requires Linux with Bash 4.4+, GNU coreutils and findutils, util-linux, procps
 and AWK. The installer also needs curl and tar. Install `gio` for the Trash,
 `jq` for `history`, and Git for applying `purge`. AppImage inspection needs
 `readelf` (binutils) and `unsquashfs` (squashfs-tools). GitHub AppImage downloads
-also need curl and jq.
+also need curl and jq. Port inspection uses `ss` from iproute2.
 
 ### Install from source
 
@@ -62,8 +62,9 @@ lemux history --json
 
 `check` reports clock source, audio, Wi-Fi, Bluetooth, services, packages,
 available memory and pressure, disks, temperatures, and journal usage. Missing
-tools and unavailable service managers are reported when relevant. Selected
-repairs are offered individually, including masked PipeWire sockets,
+tools and unavailable service managers are reported when relevant. `check --fix` shows detected repairs in a checklist. Use the arrow keys, Space
+and Enter to select them. In scripts, `-y check --fix` applies every offered
+repair. These include masked PipeWire sockets,
 failed NetworkManager and Bluetooth services, interrupted apt installs, and
 oversized archived journals. Radio switches and boot settings are left to the
 user. Low memory is diagnosed using available RAM, swap and kernel pressure
@@ -74,17 +75,33 @@ memory, swap, storage, temperature and battery when those counters are available
 Its health score is a heuristic. `history` shows operations recorded under
 `$XDG_STATE_HOME/lemux` or `~/.local/state/lemux`.
 
+## Explain an occupied port
+
+`lemux why` lists local TCP listeners and bound UDP sockets. Use `lemux why 8000`
+to see the addresses, visible PIDs, commands, executable paths, working directories
+and parent processes. `lemux why 8000 --kill` asks before sending SIGTERM. When
+several processes share the port, choose one with `--pid PID`. Process details
+depend on your permissions.
+
 ## Reclaim space
 
 | Command | Behavior |
 |---|---|
 | `lemux analyze ~/Documents` | Shows the largest top-level directories and individual files on one filesystem. |
-| `lemux clean` | Previews known browser, development and thumbnail caches. Add `--apply` to clear them. |
+| `lemux clean` | Opens a checklist in a terminal. Use ↑/↓ to navigate, Space to toggle, and Enter to preview. Run `lemux clean --apply` to select and clear. |
+| `lemux clean --deep` | Estimates native package downloads and shader, font and compiler caches. Applying also expires system caches under `/var/cache` using the distribution’s tmpfiles rules. |
+| `lemux clean --logs` | Lists npm logs and offers to vacuum archived journal files to 200M. |
+| `lemux clean --bash-history` | Selects saved `~/.bash_history`. Open Bash sessions can write their history back later. |
 | `lemux clean --packages --orphans --journal` | Adds the native package cache, orphaned packages and archived journals to the preview. `--trash` adds the user Trash. |
 | `lemux purge ~/Projects` | Finds build artifacts beside project markers. Git-tracked paths and nested repositories are kept. Recent artifacts require `--all`. |
 | `lemux installers` | Lists downloaded installers. With `--apply`, moves candidates that match installed packages or identical managed AppImages to the Trash. `--all` includes other installers. |
 | `lemux remove <id>` | Previews removal by exact package or application ID. Matching user files go to the Trash on `--apply`. |
 | `lemux optimize` | Previews DNS, desktop and font cache refreshes and eligible TRIM. Add `--apply` to run the listed steps. |
+
+Category flags can be combined. For example, `lemux clean --browser --basic --apply`
+clears browser, development and thumbnail caches. Scripts without category flags
+retain the previous cache set. Trash, orphaned packages and saved Bash history
+require an explicit selection.
 
 Put one absolute path or glob per line in `~/.config/lemux/protect` to keep
 files during cleanup. The list accepts `~/` and full-line comments. If the Trash
@@ -100,6 +117,12 @@ lemux app rollback example
 lemux app list
 lemux update --apps
 ```
+
+Use `lemux remove --appimage <id>` to preview removing a managed AppImage, its
+launcher and its command link. Add `--apply` to execute and `--purge` to
+include matching user files. The existing spelling `lemux app remove <id>`
+has the same preview and flags. General `lemux remove <id>` covers all matching
+installation backends and user data.
 
 To install from a GitHub release, pass `owner/repo` to `app install`. Add
 `--from owner/repo` when installing a local file to opt in to GitHub updates.

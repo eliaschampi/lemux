@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.0] — 2026-11-23
+
+- Select cleanup categories and detected repairs with arrow keys and Space.
+  Clean supports separate browser, development, deep cache, log and Bash history options.
+- Diagnose local TCP and UDP ports with `lemux why [PORT]` and optionally send
+  SIGTERM to a selected owner after confirmation.
+- Read AppImage icons from PNG, SVG, .DirIcon and common theme directories.
+  Desktop entries follow the selected version on update and rollback.
+- Use `remove --appimage` for managed-only removal. The `app remove` alias now
+  previews changes and requires `--apply`. General removal still includes user data.
+- Recognize managed installer duplicates through symlinks and keep shared desktop
+  directories during removal. Move cleanup guidance into command-specific help.
+
 ## [0.0.2] — 2026-11-21
 
 - Publish a standalone `install.sh` with each release. It checks the archive's
@@ -26,3 +39,4 @@ First public release of LEmux for Linux.
 
 [0.0.1]: https://github.com/eliaschampi/lemux/releases/tag/v0.0.1
 [0.0.2]: https://github.com/eliaschampi/lemux/releases/tag/v0.0.2
+[0.1.0]: https://github.com/eliaschampi/lemux/releases/tag/v0.1.0

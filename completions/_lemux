@@ -19,6 +19,7 @@ _lemux() {
   case $state in
     command)
       local -a commands=(
+        'why:explain local listeners and process ancestry'
         'status:live dashboard with a health score'
         'analyze:where the disk space went'
         'history:what lemux changed'
@@ -35,10 +36,11 @@ _lemux() {
       ;;
     argument)
       case $words[1] in
+        why) _arguments '--kill[send SIGTERM after confirmation]' '--pid[choose listener]:PID' '1:port' ;;
         check) _arguments '--fix[offer guided repairs]' ;;
-        clean) _arguments '--apply[delete instead of reporting]' '--trash[also empty the Trash]' \
+        clean) _arguments '--basic[development caches]' '--browser[browser caches]' '--deep[system and shader caches]' '--logs[archived journal and npm logs]' '--bash-history[saved Bash history]' '--apply[delete instead of reporting]' '--trash[also empty the Trash]' \
           '--orphans[also remove orphaned packages]' '--journal[also shrink the journal]' '--packages[also clean native package cache]' ;;
-        remove) _arguments '--apply[remove instead of reporting]' '1:application name' ;;
+        remove) _arguments '--appimage[managed AppImage only]' '--purge[include matching AppImage data]' '--apply[remove instead of reporting]' '1:application name' ;;
         update) _arguments '--apps[only the AppImages]' ;;
         status) _arguments '(-w --watch)'{-w,--watch}'[refresh continuously]' '-n[refresh interval]:seconds' ;;
         analyze) _arguments '--top[how many folders]:number' '1:folder:_directories' ;;
@@ -63,7 +65,7 @@ _lemux() {
                 '*:AppImage:_files -g "*.(AppImage|appimage)(-.)"' ;;
               update) _arguments '--force[reinstall or downgrade]' '--from[GitHub owner/repo]:repository' '*:app:_lemux_apps' ;;
               rollback) _lemux_apps ;;
-              remove) _arguments '--purge[also delete its settings]' '*:app:_lemux_apps' ;;
+              remove) _arguments '--apply[execute removal]' '--purge[also delete its settings]' '*:app:_lemux_apps' ;;
             esac
           fi
           ;;

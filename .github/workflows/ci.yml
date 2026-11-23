@@ -26,16 +26,16 @@ jobs:
         include:
           - distro: debian
             image: debian:stable
-            deps: apt-get update -qq && apt-get install -y -qq bats procps jq curl make cowsay git libglib2.0-bin binutils squashfs-tools tar gzip
+            deps: apt-get update -qq && apt-get install -y -qq bats procps iproute2 python3 jq curl make cowsay git libglib2.0-bin binutils squashfs-tools tar gzip
           - distro: fedora
             image: fedora:latest
-            deps: dnf -y -q install bats procps-ng findutils diffutils jq curl make which cowsay git glib2 binutils squashfs-tools tar gzip
+            deps: dnf -y -q install bats procps-ng iproute python3 findutils diffutils jq curl make which cowsay git glib2 binutils squashfs-tools tar gzip
           - distro: arch
             image: archlinux:latest
-            deps: pacman -Syu --noconfirm --needed bats procps-ng jq curl make diffutils which cowsay git glib2 binutils squashfs-tools tar gzip
+            deps: pacman -Syu --noconfirm --needed bats procps-ng iproute2 python jq curl make diffutils which cowsay git glib2 binutils squashfs-tools tar gzip
           - distro: opensuse
             image: opensuse/tumbleweed:latest
-            deps: zypper -n -q in bats procps findutils jq curl make diffutils which gawk tar gzip cowsay git gio binutils squashfs
+            deps: zypper -n -q in bats procps iproute2 python3 findutils jq curl make diffutils which gawk tar gzip cowsay git gio binutils squashfs
     steps:
       - name: Install dependencies
         run: ${{ matrix.deps }}
@@ -52,6 +52,7 @@ jobs:
         run: |
           bin/lemux check || test "$?" -eq 1
           bin/lemux clean --packages --orphans --journal
+          bin/lemux why 65535
           bin/lemux app list
           bin/lemux status
           bin/lemux analyze "$HOME"

@@ -126,12 +126,37 @@ app_inspect() {
   [[ -n $A_VERSION ]] || A_VERSION=$(ver_num "$original")
   [[ -n $A_VERSION ]] || A_VERSION=$(date -r "$img" +%Y.%m.%d)
   icon=$(desktop_key Icon "$w/desktop")
-  if [[ $icon =~ ^[A-Za-z0-9_.+-]+$ ]]; then
-    if ! (ulimit -f 4096; timeout 12 unsquashfs -processors 1 -offset "$offset" -cat "$img" "$icon.png") \
-      >"$w/icon.png" 2>/dev/null || [[ $(od -An -tx1 -N8 -- "$w/icon.png" | tr -d ' \n') != 89504e470d0a1a0a ]]; then
-      rm -f -- "$w/icon.png"
-    fi
+  [[ ${5:-} != metadata ]] || return 0
+  app_icon "$img" "$offset" "$icon" "$w"
+}
+
+# Read only selected archive members. unsquashfs resolves links inside the image.
+app_icon() {
+  local img=$1 offset=$2 icon=$3 w=$4 file size base
+  local -a paths=()
+  if [[ $icon =~ ^[A-Za-z0-9_.+-]+$ && $icon != .* ]]; then
+    base=${icon%.png}
+    base=${base%.svg}
+    paths+=("$base.png" "$base.svg")
   fi
+  paths+=(.DirIcon)
+  if [[ -n ${base:-} ]]; then
+    paths+=("usr/share/icons/hicolor/scalable/apps/$base.svg")
+    for size in 512 256 128 96 64 48 32 24 16; do
+      paths+=("usr/share/icons/hicolor/${size}x${size}/apps/$base.png")
+    done
+    paths+=("usr/share/pixmaps/$base.png" "usr/share/pixmaps/$base.svg")
+  fi
+  for file in "${paths[@]}"; do
+    (ulimit -f 4096; timeout 8 unsquashfs -processors 1 -offset "$offset" -cat "$img" "$file") \
+      >"$w/icon.tmp" 2>/dev/null || continue
+    if [[ $(od -An -tx1 -N8 -- "$w/icon.tmp" | tr -d ' \n') == 89504e470d0a1a0a ]]; then
+      mv -- "$w/icon.tmp" "$w/icon.png"; return
+    elif LC_ALL=C grep -aqE '<svg([[:space:]>]|$)' "$w/icon.tmp"; then
+      mv -- "$w/icon.tmp" "$w/icon.svg"; return
+    fi
+  done
+  rm -f -- "$w/icon.tmp"
 }
 
 app_stage() {
@@ -171,25 +196,26 @@ desktop_path() {
 }
 
 app_launcher() {
-  local dir=$1 id=${1##*/} entry stage icon=""
+  local dir=$1 version_dir=$2 id=${1##*/} entry icon=application-x-executable name
+  name=$(sed -n 's/^name=//p' "$version_dir/meta") || return 1
   [[ $dir != *[[:cntrl:]]* ]] || { err "desktop launchers need a path without control characters"; return 1; }
   mkdir -p -- "$APPS_MENU" || return 1
   [[ $(realpath -e -- "$APPS_MENU") == "$APPS_MENU" ]] || return 1
   entry=$APPS_MENU/lemux-$id.desktop
-  if [[ -e $entry || -L $entry ]]; then can_remove_path "$entry" || return 1; fi
-  if [[ -f $APP_STAGE/icon.png ]]; then
-    if [[ -e $dir/icon.png || -L $dir/icon.png ]]; then can_remove_path "$dir/icon.png" || return 1; fi
-    cp --remove-destination -- "$APP_STAGE/icon.png" "$dir/icon.png" || return 1
-    icon=$dir/icon.png
+  is_protected "$entry" && { err "protected launcher: $entry"; return 1; }
+  if [[ -e $entry || -L $entry ]]; then
+    if ! can_remove_path "$entry" || [[ ! -f $entry || -L $entry || $(desktop_key X-Lemux-Id "$entry") != "$id" ]]; then
+      err "launcher already in use: $entry"
+      return 1
+    fi
   fi
-  stage=$(mktemp -- "$APPS_MENU/.lemux-desktop.XXXXXXXX") || return 1
-  if ! { printf '[Desktop Entry]\nType=Application\nName=%s\nExec="%s"\nX-Lemux-Id=%s\n' \
-           "$A_NAME" "$(desktop_path "$dir/$id.AppImage")" "$id"
-         if [[ -n $icon ]]; then printf 'Icon=%s\n' "${icon//\\/\\\\}"; fi
-       } >"$stage" || ! mv -fT -- "$stage" "$entry"; then
-    rm -f -- "$stage"
-    return 1
+  if [[ -f $version_dir/icon.png ]]; then icon=$version_dir/icon.png
+  elif [[ -f $version_dir/icon.svg ]]; then icon=$version_dir/icon.svg
   fi
+  # Activation publishes this entry after switching the executable.
+  APP_ENTRY=$(mktemp -- "$APPS_MENU/.lemux-desktop.XXXXXXXX") || return 1
+  printf '[Desktop Entry]\nType=Application\nName=%s\nExec="%s"\nX-Lemux-Id=%s\nIcon=%s\n' \
+    "$name" "$(desktop_path "$dir/$id.AppImage")" "$id" "${icon//\\/\\\\}" >"$APP_ENTRY"
 }
 
 app_activate() {
@@ -200,10 +226,17 @@ app_activate() {
     # Migrate a previous installation at the same stable command path.
     backup=$(mktemp -d -- "$dir/.versions/XXXXXXXX") || return 1
     ln -- "$live" "$backup/app.AppImage" && cp -- "$dir/meta" "$backup/meta" || return 1
+    if [[ -f $dir/icon.png ]]; then cp -- "$dir/icon.png" "$backup/icon.png" || return 1; fi
     current=.versions/${backup##*/}/app.AppImage
   fi
+  app_launcher "$dir" "$dir/${next%/*}" || return 1
+  if ! app_link "$next" "$live"; then rm -f -- "$APP_ENTRY"; return 1; fi
+  if ! mv -fT -- "$APP_ENTRY" "$APPS_MENU/lemux-$id.desktop"; then
+    rm -f -- "$APP_ENTRY"
+    if [[ -n $current ]]; then app_link "$current" "$live"; else rm -f -- "$live"; fi
+    return 1
+  fi
   [[ -z $current ]] || app_link "$current" "$dir/.previous" || return 1
-  app_link "$next" "$live" || return 1
   for backup in "$dir"/.versions/*/; do
     backup=${backup%/}
     [[ ".versions/${backup##*/}/app.AppImage" == "$current" ||
@@ -246,14 +279,13 @@ app_install() {
   local scratch=$LEMUX_TMP/inspect
   mkdir -- "$scratch" || return 1
   need readelf timeout
-  app_inspect "$img" "$file" "$scratch" "$tag" || return 1
+  app_inspect "$img" "$file" "$scratch" "$tag" metadata || return 1
   id=$(slug "${name:-$A_NAME}")
   app_id "$id" || usage_error "cannot derive an application ID; use --name"
   dir=$LEMUX_APPS/$id
   is_protected "$dir" && { err "protected path: $dir"; return 1; }
   mkdir -- "$dir" || { err "$id could not be created (check whether it is already installed)"; return 1; }
   if ! app_stage "$dir" "$img" "$file" "$repo" "$tag" ||
-     ! app_launcher "$dir" ||
      ! app_activate "$dir" ".versions/${APP_STAGE##*/}/app.AppImage"; then
     rm -rf -- "$dir"
     return 1
@@ -309,7 +341,7 @@ app_update_one() {
       return 0
     fi
   fi
-  app_launcher "$dir" && app_activate "$dir" ".versions/${APP_STAGE##*/}/app.AppImage" || return 1
+  app_activate "$dir" ".versions/${APP_STAGE##*/}/app.AppImage" || return 1
   oplog update "appimage:$id $current -> $A_VERSION"
   ok "$id $current → $A_VERSION"
 }
@@ -410,7 +442,7 @@ cmd_app() {
     update | upgrade) app_update "$@" ;;
     list | ls) app_list "$@" ;;
     rollback) app_rollback "$@" ;;
-    remove | rm | uninstall) app_remove "$@" ;;
+    remove | rm | uninstall) cmd_remove --appimage "$@" ;;
     -h | --help | help) help_app ;;
     *) usage_error "app: unknown command '$sub' (see: lemux app --help)" ;;
   esac
@@ -426,7 +458,7 @@ Usage: lemux app <command>
   update <id> --from owner/repo
   list
   rollback <id>
-  remove <id> [--purge]
+  remove <id> [--apply] [--purge]   alias for lemux remove --appimage
 
 AppImages are inspected without running them. GitHub assets need a published
 SHA-256 digest. --from explicitly selects a GitHub source for future updates.

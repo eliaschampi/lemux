@@ -29,7 +29,7 @@ fill() { mkdir -p "$(dirname "$1")"; head -c 20000 /dev/urandom >"$1"; }
 }
 
 @test "every command has its own help" {
-  for c in check clean remove app update purge installers analyze status optimize history; do
+  for c in why check clean remove app update purge installers analyze status optimize history; do
     run "$LEMUX" "$c" --help
     [ "$status" -eq 0 ]
     [[ $output == Usage:* ]]
@@ -279,6 +279,9 @@ fixture_image() {
   local version=$1 image=$2 dir=$BATS_TEST_TMPDIR/app-root squash=$BATS_TEST_TMPDIR/payload.sqfs
   mkdir -p "$dir"
   printf '[Desktop Entry]\nType=Application\nName=Example App\nExec=example\nX-AppImage-Version=%s\n' "$version" >"$dir/example.desktop"
+  mkdir -p "$dir/usr/share/icons/hicolor/scalable/apps"
+  printf '<svg xmlns="http://www.w3.org/2000/svg"><title>%s</title></svg>' "$version" >"$dir/usr/share/icons/hicolor/scalable/apps/example.svg"
+  echo 'Icon=example' >>"$dir/example.desktop"
   mksquashfs "$dir" "$squash" -noappend -processors 1 -no-progress >/dev/null
   cp /bin/true "$image"
   printf 'AI\002' | dd of="$image" bs=1 seek=8 conv=notrunc status=none
@@ -292,16 +295,24 @@ fixture_image() {
   fixture_image 2.0.0 "$HOME/Example-2.0.0.AppImage"
   run "$LEMUX" app install "$HOME/Example-1.0.0.AppImage" --name example
   [ "$status" -eq 0 ]
+  entry="$XDG_DATA_HOME/applications/lemux-example.desktop"
+  icon=$(sed -n 's/^Icon=//p' "$entry")
+  grep -F '1.0.0' "$icon"
   [ ! -x "$HOME/Example-1.0.0.AppImage" ]
   run "$LEMUX" app update example "$HOME/Example-2.0.0.AppImage"
   [ "$status" -eq 0 ]
+  grep -F '2.0.0' "$(sed -n 's/^Icon=//p' "$entry")"
   run "$LEMUX" app list
   [[ $output == *"2.0.0"* ]]
   run "$LEMUX" app rollback example
   [ "$status" -eq 0 ]
   run "$LEMUX" app list
   [[ $output == *"1.0.0"* ]]
+  grep -F '1.0.0' "$(sed -n 's/^Icon=//p' "$entry")"
   run "$LEMUX" app remove example
+  [ "$status" -eq 0 ]
+  [ -f "$entry" ]
+  run "$LEMUX" remove --appimage example --apply
   [ "$status" -eq 0 ]
   [ ! -e "$XDG_DATA_HOME/lemux/apps/example" ]
   [ ! -L "$HOME/.local/bin/example" ]
@@ -355,4 +366,114 @@ MOCK
   [[ $output == *"SHA-256 digest"* ]]
   [[ $output != *"unexpected asset download"* ]]
   [ ! -e "$XDG_DATA_HOME/lemux/apps/example" ]
+}
+
+@test "explicit clean categories isolate history, browser, logs and deep caches" {
+  fill "$HOME/.bash_history"
+  fill "$XDG_CACHE_HOME/thumbnails/p"
+  fill "$XDG_CACHE_HOME/mesa_shader_cache/p"
+  fill "$HOME/.npm/_logs/log"
+  run "$LEMUX" clean --bash-history
+  [ "$status" -eq 0 ]
+  [[ $output == *'Saved Bash history'* && $output != *'Thumbnails'* ]]
+  [ -f "$HOME/.bash_history" ]
+  run "$LEMUX" clean --bash-history --apply
+  [ "$status" -eq 0 ]
+  [ ! -e "$HOME/.bash_history" ]
+  [ -f "$XDG_CACHE_HOME/thumbnails/p" ]
+  run "$LEMUX" clean --deep
+  [[ $output == *'Mesa shader cache'* && $output != *'Thumbnails'* ]]
+  mkdir -p "$XDG_CONFIG_HOME/lemux"
+  printf '/var/log/journal\n' >"$XDG_CONFIG_HOME/lemux/protect"
+  run "$LEMUX" clean --logs --apply
+  [ "$status" -eq 0 ]
+  [ ! -e "$HOME/.npm/_logs" ]
+  [ -f "$XDG_CACHE_HOME/mesa_shader_cache/p" ]
+  export XDG_CACHE_HOME=$XDG_CONFIG_HOME
+  fill "$XDG_CONFIG_HOME/chromium/Default/Bookmarks"
+  run "$LEMUX" clean --browser --apply
+  [ "$status" -ne 0 ]
+  [ -f "$XDG_CONFIG_HOME/chromium/Default/Bookmarks" ]
+}
+
+@test "why explains a real TCP and UDP port and signals only the chosen owner" {
+  command -v python3 >/dev/null && command -v ss >/dev/null || skip "needs python3 and ss"
+  python3 - "$LEMUX" <<'PY'
+import signal, socket, subprocess, sys
+cli = sys.argv[1]
+child = """import socket,sys,time
+s=socket.socket(type=getattr(socket,sys.argv[1]))
+s.bind(('127.0.0.1',int(sys.argv[2])))
+if s.type == socket.SOCK_STREAM: s.listen()
+print(s.getsockname()[1],flush=True)
+time.sleep(30)"""
+a = subprocess.Popen([sys.executable, '-c', child, 'SOCK_STREAM', '0'], stdout=subprocess.PIPE, text=True)
+try:
+    port = a.stdout.readline().strip()
+    b = subprocess.Popen([sys.executable, '-c', child, 'SOCK_DGRAM', port], stdout=subprocess.PIPE, text=True)
+    try:
+        assert b.stdout.readline().strip() == port
+        diag = subprocess.check_output([cli, 'why', port], text=True)
+        assert all(x in diag for x in ('tcp', 'udp', 'cwd:', 'parent:', f'PID {a.pid}', f'PID {b.pid}'))
+        assert subprocess.run([cli, '-y', 'why', port, '--kill']).returncode == 2
+        assert subprocess.run([cli, 'why', port, '--kill', '--pid', str(a.pid)], stdin=subprocess.DEVNULL).returncode != 0
+        subprocess.run([cli, '-y', 'why', port, '--kill', '--pid', str(a.pid)], check=True)
+        assert a.wait(timeout=3) == -signal.SIGTERM and b.poll() is None
+    finally:
+        b.terminate()
+        b.wait()
+finally:
+    a.terminate()
+    a.wait()
+PY
+  run "$LEMUX" why 65536 --kill
+  [ "$status" -eq 2 ]
+}
+
+@test "terminal checklists accept arrows and Space, apply a subset, and cancel cleanly" {
+  command -v python3 >/dev/null || skip "needs python3"
+  fill "$HOME/.npm/_cacache/blob"
+  fill "$HOME/.bash_history"
+  python3 - "$LEMUX" <<'PY'
+import os, pty, select, subprocess, sys, time
+from pathlib import Path
+cli = Path(sys.argv[1]).resolve()
+def menu(command, marker, keys, expected):
+    master, slave = pty.openpty()
+    proc = subprocess.Popen(command, stdin=slave, stdout=slave, stderr=slave)
+    os.close(slave)
+    buf = b''
+    try:
+        limit = time.monotonic() + 6
+        while marker not in buf and time.monotonic() < limit:
+            if select.select([master], [], [], .2)[0]:
+                buf += os.read(master, 65536)
+        assert marker in buf, buf
+        os.write(master, keys)
+        assert proc.wait(timeout=5) == expected, buf
+    finally:
+        proc.kill()
+        proc.wait()
+        os.close(master)
+home = Path.home()
+menu([cli, 'clean', '--apply'], b'Remove orphaned packages', b'q', 130)
+assert (home/'.npm/_cacache/blob').exists()
+# Turn off basic/browser and turn on saved history.
+menu([cli, 'clean', '--apply'], b'Remove orphaned packages', b' \x1b[B jjj \n', 0)
+assert (home/'.npm/_cacache/blob').exists() and not (home/'.bash_history').exists()
+# Drive the normal repair dispatcher with two deterministic findings.
+fixture = """
+source "$1/lib/lemux/core.sh"
+source "$1/lib/lemux/check.sh"
+for fn in system clock audio wifi bluetooth services packages memory disks thermal journal; do
+  eval "chk_${fn}() { :; }"
+done
+first() { touch "$HOME/first"; }
+second() { touch "$HOME/second"; }
+chk_system() { add_fix First first; add_fix Second second; }
+cmd_check --fix
+"""
+menu(['bash', '-c', fixture, 'bash', cli.parents[1]], b'[ ] Second', b'j \n', 0)
+assert (home/'second').exists() and not (home/'first').exists()
+PY
 }

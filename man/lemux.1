@@ -1,4 +1,4 @@
-.TH LEMUX 1 2026-11-21 "lemux 0.0.2" "User Commands"
+.TH LEMUX 1 2026-11-23 "lemux 0.1.0" "User Commands"
 .SH NAME
 lemux \- check, clean, remove, install and update a Linux system
 .SH SYNOPSIS
@@ -24,6 +24,11 @@ One-screen dashboard: health score (0\(en100), CPU, memory, swap, disk usage and
 I/O, network traffic, temperature, battery, failed units and top processes.
 .B \-\-watch
 refreshes it until Ctrl+C.
+.TP
+.B why [PORT] [\-\-kill [\-\-pid PID]]
+List local TCP listeners and UDP bindings with ss. A port number shows visible owners,
+commands, working directories, executable paths and parents. To send SIGTERM, supply a
+port and --kill and confirm. Use --pid to select among multiple owners.
 .TP
 .BR analyze " [\fIfolder\fR] [" \-\-top
 .IR N ]
@@ -61,12 +66,17 @@ runs TRIM when no fstrim timer is active. Only the steps that apply to the syste
 Health report for clock, audio, Wi-Fi, Bluetooth, services, packages, memory,
 swap, storage, temperatures and the systemd journal.
 .B \-\-fix
-offers, one by one, the repairs
+shows checkboxes for the repairs
 .B lemux
-knows for the problems found. Exits 1 when there are warnings.
+knows for the problems found. Space toggles a repair and Enter accepts. With -y all offered repairs are selected. Exits 1 when there are warnings.
 .TP
 .BR clean " [" \-\-apply "] [" \-\-trash "] [" \-\-orphans "] [" \-\-journal "] [" \-\-packages ]
-Reports the space held by browser caches (skipped while the browser runs), npm,
+Select categories with the arrow keys, Space and Enter. Category flags bypass the menu:
+.BR \-\-basic ", " \-\-browser ", " \-\-deep ", " \-\-logs ", " \-\-bash-history .
+Deep cleaning includes native package downloads, system cache expiry under /var/cache,
+shader caches, font indexes and compiler cache objects. Logs include npm logs and archived journals.
+Bash history clears the saved ~/.bash_history. Open sessions may write their history again.
+In scripts the default set includes browser caches (skipped while the browser runs), npm,
 pnpm, Yarn, pip, Go, Composer, Corepack, Cargo downloads and thumbnails.
 .B \-\-packages
 also cleans the native package cache.
@@ -103,8 +113,9 @@ A previous version is kept for rollback. Set a source with
 .B app update \fIid file.AppImage
 updates from a local file.
 .TP
-.B app list\fR, \fBapp rollback \fIid\fR, \fBapp remove \fIid \fR[\fB\-\-purge\fR]
-List installed AppImages, return to the previous version, or uninstall
+.B app list\fR, \fBapp rollback \fIid\fR, \fBapp remove \fIid \fR[\fB\-\-apply\fR] [\fB\-\-purge\fR]
+List installed AppImages, return to the previous version, or preview managed removal.
+Use lemux remove --appimage ID --apply to execute it
 .RB ( \-\-purge
 also moves matching user files to the Trash).
 .TP

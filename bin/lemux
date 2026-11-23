@@ -13,34 +13,37 @@ LEMUX_LIBDIR=${LEMUX_LIBDIR:-$(dirname -- "$(readlink -f -- "${BASH_SOURCE[0]}")
 [[ -r $LEMUX_LIBDIR/core.sh ]] || { echo "lemux: library not found in $LEMUX_LIBDIR" >&2; exit 1; }
 
 # shellcheck source=../lib/lemux/core.sh
-. "$LEMUX_LIBDIR/core.sh"
+. "$LEMUX_LIBDIR/core.sh" || exit 1
 # shellcheck source=../lib/lemux/pkg.sh
-. "$LEMUX_LIBDIR/pkg.sh"
+. "$LEMUX_LIBDIR/pkg.sh" || exit 1
 # shellcheck source=../lib/lemux/check.sh
-. "$LEMUX_LIBDIR/check.sh"
+. "$LEMUX_LIBDIR/check.sh" || exit 1
 # shellcheck source=../lib/lemux/clean.sh
-. "$LEMUX_LIBDIR/clean.sh"
+. "$LEMUX_LIBDIR/clean.sh" || exit 1
 # shellcheck source=../lib/lemux/app.sh
-. "$LEMUX_LIBDIR/app.sh"
+. "$LEMUX_LIBDIR/app.sh" || exit 1
 # shellcheck source=../lib/lemux/remove.sh
-. "$LEMUX_LIBDIR/remove.sh"
+. "$LEMUX_LIBDIR/remove.sh" || exit 1
 # shellcheck source=../lib/lemux/update.sh
-. "$LEMUX_LIBDIR/update.sh"
+. "$LEMUX_LIBDIR/update.sh" || exit 1
 # shellcheck source=../lib/lemux/purge.sh
-. "$LEMUX_LIBDIR/purge.sh"
+. "$LEMUX_LIBDIR/purge.sh" || exit 1
 # shellcheck source=../lib/lemux/installers.sh
-. "$LEMUX_LIBDIR/installers.sh"
+. "$LEMUX_LIBDIR/installers.sh" || exit 1
 # shellcheck source=../lib/lemux/analyze.sh
-. "$LEMUX_LIBDIR/analyze.sh"
+. "$LEMUX_LIBDIR/analyze.sh" || exit 1
 # shellcheck source=../lib/lemux/status.sh
-. "$LEMUX_LIBDIR/status.sh"
+. "$LEMUX_LIBDIR/status.sh" || exit 1
 # shellcheck source=../lib/lemux/optimize.sh
-. "$LEMUX_LIBDIR/optimize.sh"
+. "$LEMUX_LIBDIR/optimize.sh" || exit 1
 # shellcheck source=../lib/lemux/history.sh
-. "$LEMUX_LIBDIR/history.sh"
+. "$LEMUX_LIBDIR/history.sh" || exit 1
+
+# shellcheck source=../lib/lemux/why.sh
+. "$LEMUX_LIBDIR/why.sh" || exit 1
 
 # Fail loudly when a basic tool is missing (minimal containers often lack findutils or procps).
-for tool in find du awk sed ps sort stat numfmt; do
+for tool in find du awk sed ps sort stat numfmt pgrep; do
   command -v "$tool" >/dev/null 2>&1 || die "missing dependency: $tool (install findutils, procps, coreutils, gawk)"
 done
 
@@ -57,17 +60,19 @@ Usage: lemux [-y] <command> [options]
 Look:
   status [--watch]               live dashboard with a health score
   check [--fix]                  health report; --fix offers guided repairs
+  why [PORT] [--kill]            explain local listeners and their process ancestry
   analyze [folder]               where the disk space went
   history                        what lemux changed
 
 Free space (dry run by default, add --apply):
-  clean [--trash] [--orphans] [--journal] [--packages]   caches that rebuild themselves
+  clean [categories] [--apply]   select caches, logs or saved Bash history
   purge [folder]                 build artifacts of your projects (node_modules, target...)
   installers                     installer files you no longer need
 
 Maintain:
-  remove <name> [--apply]        uninstall an exact application ID
-  app <install|update|list|rollback|remove>
+  remove <name> [--apply]        uninstall by ID, including matching user data
+  remove --appimage <id>         remove only a managed AppImage (preview first)
+  app <install|update|list|rollback>
                                  AppImages as real apps, with verified updates
   update [--apps]                update system packages, Flatpak, Snap and AppImages
   optimize [--apply]             refresh DNS, menu, MIME, icon and font caches; TRIM
@@ -77,8 +82,6 @@ Options:
       --no-color   plain output (NO_COLOR is honoured too)
   -h, --help       this help (also: lemux <command> --help)
   -V, --version    print the version
-
-Free-space commands preview changes by default. Protect paths in ~/.config/lemux/protect.
 EOF
 }
 
@@ -99,6 +102,7 @@ main() {
   LEMUX_CMD=$cmd
   case $cmd in
     check | doctor) cmd_check "$@" ;;
+    why) cmd_why "$@" ;;
     clean) cmd_clean "$@" ;;
     remove | uninstall) cmd_remove "$@" ;;
     app | apps) cmd_app "$@" ;;

@@ -5,7 +5,7 @@
 # own status, so a failed grep in a probe never aborts a cleanup halfway through.
 
 # shellcheck disable=SC2034  # read by bin/lemux
-LEMUX_VERSION="0.0.2"
+LEMUX_VERSION="0.1.0"
 
 : "${XDG_CONFIG_HOME:=$HOME/.config}"
 : "${XDG_DATA_HOME:=$HOME/.local/share}"
@@ -244,4 +244,30 @@ ver_gt() {
   local a b
   a=$(ver_num "$1") b=$(ver_num "$2")
   [[ -n $a && -n $b && $a != "$b" ]] && [[ $(printf '%s\n%s\n' "$a" "$b" | sort -V | tail -n1) == "$a" ]]
+}
+
+# Edit an indexed array of 0/1 flags in place. Call only on an interactive TTY.
+checkboxes() {
+  local -n labels=$1 flags=$2
+  local row=0 i key sequence marker cursor count=${#labels[@]}
+  printf '%s\n' "$3 (↑/↓ or j/k, Space to toggle, Enter to accept, q to cancel)"
+  while :; do
+    for ((i=0; i<count; i++)); do
+      cursor=' ' marker=' '
+      ((i == row)) && cursor='>'
+      ((flags[i])) && marker=x
+      printf '%s [%s] %s\n' "$cursor" "$marker" "${labels[i]}"
+    done
+    IFS= read -rsn1 key || return 130
+    case $key in
+      '') return 0 ;;
+      q) return 130 ;;
+      ' ') flags[row]=$((1 - flags[row])) ;;
+      $'\e')
+        IFS= read -rsn2 -t 0.3 sequence || return 130
+        case $sequence in '[A') key=k ;; '[B') key=j ;; esac ;;
+    esac
+    case $key in j) row=$(((row + 1) % count)) ;; k) row=$(((row + count - 1) % count)) ;; esac
+    printf '\033[%dA' "$count"
+  done
 }
